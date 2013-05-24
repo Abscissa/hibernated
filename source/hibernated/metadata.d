@@ -346,7 +346,12 @@ class EntityInfo {
 	/// returns property by index
     const(PropertyInfo) getProperty(int propertyIndex) const { return properties[propertyIndex]; }
 	/// returns property by name, throws exception if not found
-    const(PropertyInfo) findProperty(string propertyName) const { try { return _propertyMap[propertyName]; } catch (Throwable e) { throw new MappingException("No property " ~ propertyName ~ " found in entity " ~ name); } }
+    const(PropertyInfo) findProperty(string propertyName) const {
+		if(auto prop = propertyName in _propertyMap)
+			return *prop;
+		else
+			throw new MappingException("No property " ~ propertyName ~ " found in entity " ~ name);
+	}
 	/// create instance of entity object (using default constructor)
 	Object createEntity() const { return Object.factory(classInfo.name); }
 
@@ -3327,7 +3332,7 @@ class DBInfo {
             foreach(sql; batch) {
                 stmt.executeUpdate(sql);
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new HibernatedException(e);
         }
     }
@@ -3344,7 +3349,7 @@ class DBInfo {
                 if (rs.next())
                     res ~= table.tableName;
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new HibernatedException(e);
         }
         return res;
