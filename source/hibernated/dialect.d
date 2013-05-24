@@ -43,24 +43,24 @@ abstract class Dialect {
         return openQuote() ~ name[1..$-1] ~ closeQuote();
     }
 
-	// should return true for identifiers which cannot be used w/o quote (e.g. keywords)
-	bool needQuote(string ident) const {
-		return (toUpper(ident) in keywordList) !is null;
-	}
+    // should return true for identifiers which cannot be used w/o quote (e.g. keywords)
+    bool needQuote(string ident) const {
+        return (toUpper(ident) in keywordList) !is null;
+    }
 
-	string quoteIfNeeded(string ident) const {
-		if (needQuote(ident))
-			return quote("`" ~ ident ~ "`");
-		return quote(ident);
-	}
+    string quoteIfNeeded(string ident) const {
+        if (needQuote(ident))
+            return quote("`" ~ ident ~ "`");
+        return quote(ident);
+    }
 
-	protected int[string] keywordList;
+    protected int[string] keywordList;
 
-	protected void addKeywords(string[] keywords) {
-		foreach(s; keywords) {
-			keywordList[s] = 1;
-		}
-	}
+    protected void addKeywords(string[] keywords) {
+        foreach(s; keywords) {
+            keywordList[s] = 1;
+        }
+    }
 
     string getDropIndexSQL(string tableName, string indexName) {
         return "DROP INDEX " ~ quoteIfNeeded(indexName) ~ " ON " ~ quoteIfNeeded(tableName);
@@ -101,33 +101,33 @@ abstract class Dialect {
         return "(" ~ res ~ ")";
     }
 
-	char getStringQuoteChar() {
-		return '\'';
-	}
+    char getStringQuoteChar() {
+        return '\'';
+    }
 
-	string quoteSqlString(string s) {
-		string res = "'";
-		foreach(ch; s) {
-			switch(ch) {
-				case '\'': res ~= "\\\'"; break;
-				case '\"': res ~= "\\\""; break;
-				case '\\': res ~= "\\\\"; break;
-				case '\0': res ~= "\\n"; break;
-				case '\a': res ~= "\\a"; break;
-				case '\b': res ~= "\\b"; break;
-				case '\f': res ~= "\\f"; break;
-				case '\n': res ~= "\\n"; break;
-				case '\r': res ~= "\\r"; break;
-				case '\t': res ~= "\\t"; break;
-				case '\v': res ~= "\\v"; break;
-				default:
-					res ~= ch;
-			}
-		}
-		res ~= "'";
-		//writeln("quoted " ~ s ~ " is " ~ res);
-		return res;
-	}
+    string quoteSqlString(string s) {
+        string res = "'";
+        foreach(ch; s) {
+            switch(ch) {
+                case '\'': res ~= "\\\'"; break;
+                case '\"': res ~= "\\\""; break;
+                case '\\': res ~= "\\\\"; break;
+                case '\0': res ~= "\\n"; break;
+                case '\a': res ~= "\\a"; break;
+                case '\b': res ~= "\\b"; break;
+                case '\f': res ~= "\\f"; break;
+                case '\n': res ~= "\\n"; break;
+                case '\r': res ~= "\\r"; break;
+                case '\t': res ~= "\\t"; break;
+                case '\v': res ~= "\\v"; break;
+                default:
+                    res ~= ch;
+            }
+        }
+        res ~= "'";
+        //writeln("quoted " ~ s ~ " is " ~ res);
+        return res;
+    }
 
 /+
     ///Provided we supportsInsertSelectIdentity(), then attach the "select identity" clause to the insert statement.

@@ -38,9 +38,9 @@ struct Transient {
  * @Entity or @Entity() - marks class as entity, using class name as entity name.
  */
 struct Entity {
-	//immutable string name;
+    //immutable string name;
     immutable bool dummy;
-    //	this(string name) { this.name = name; }
+    //    this(string name) { this.name = name; }
 }
 
 /**
@@ -48,8 +48,8 @@ struct Entity {
  * Columns for each of Embeddable entity properties will be placed into parent entity's table, where this embeddable entity is embedded
  */
 struct Embeddable {
-	immutable bool dummy;
-//	this(bool enabled) {}
+    immutable bool dummy;
+//    this(bool enabled) {}
 }
 
 /**
@@ -59,8 +59,8 @@ struct Embeddable {
  * CamelCaseEntityName to camel_case_entity_name.
  */
 struct Table {
-	immutable string name;
-//	this(string name) { this.name = name; }
+    immutable string name;
+//    this(string name) { this.name = name; }
 }
 
 /** 
@@ -96,25 +96,25 @@ struct Table {
  * Field name camelCasePropertyName will be converted to camel_case_property_name column name.
  */
 struct Column {
-	immutable string name;
-	immutable int length;
-//	this(string name) { this.name = name; }
-//	this(string name, int length) { this.name = name; this.length = length; }
-//	this(int length) { this.length = length; }
+    immutable string name;
+    immutable int length;
+//    this(string name) { this.name = name; }
+//    this(string name, int length) { this.name = name; this.length = length; }
+//    this(int length) { this.length = length; }
 }
 
 /**
  * @Id or @Id() - mark simple property as primary key of entity.
  */
 struct Id {
-	immutable bool dummy;
+    immutable bool dummy;
 }
 
 /**
  * @Generated or @Generated() - mark simple property as column as server generated value (e.g. AUTO INCREMENT field)
  */
 struct Generated {
-	immutable bool dummy;
+    immutable bool dummy;
 }
 
 /**
@@ -132,7 +132,7 @@ const string UUID_GENERATOR = "std.uuid.randomUUID().toString()";
  * If neither @NotNull nor @Null specified, nullability will be derived from field type (e.g. NotNull for int, long; Null for string, byte[], Nullable!int)
  */
 struct NotNull {
-	immutable bool dummy;
+    immutable bool dummy;
 }
 
 /**
@@ -140,7 +140,7 @@ struct NotNull {
  * If neither @NotNull nor @Null specified, nullability will be derived from field type (e.g. NotNull for int, long; Null for string, byte[], Nullable!int)
  */
 struct Null {
-	immutable bool dummy;
+    immutable bool dummy;
 }
 
 /**
@@ -158,8 +158,8 @@ struct UniqueKey {
  * @OneToOne or @OneToOne() - referenced object uses one-to-one relation, requires additional @JoinColumn annotation to specify foreign key column in current entity to join with current entity's primary key.
  */
 struct OneToOne {
-	immutable string name;
-//	this(string referencedPropertyName) { this.name = name; }
+    immutable string name;
+//    this(string referencedPropertyName) { this.name = name; }
 }
 
 /**
@@ -175,8 +175,8 @@ struct ManyToOne {
  * This annotation is mandatory if property has @OneToOne annotation w/o parameter or @ManyToOne annotation
  */
 struct JoinColumn {
-	immutable string name;
-//	this(string columnName) { this.name = name; }
+    immutable string name;
+//    this(string columnName) { this.name = name; }
 }
 
 /**
@@ -199,16 +199,16 @@ struct ManyToMany {
 
 unittest {
 
-	@Entity
-	@Table("user")
-	class User {
+    @Entity
+    @Table("user")
+    class User {
 
-		@Id @Generated
-		@Column("id")
-		int id;
+        @Id @Generated
+        @Column("id")
+        int id;
 
-		@Column("name")
-		string name;
-	}
+        @Column("name")
+        string name;
+    }
 
 }
