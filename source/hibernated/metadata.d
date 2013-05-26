@@ -40,7 +40,7 @@ import hibernated.dialects.mysqldialect;
 abstract class EntityMetaData {
 
     @property size_t length();
-    const(EntityInfo) opIndex(int index) const;
+    const(EntityInfo) opIndex(size_t index) const;
     const(EntityInfo) opIndex(string entityName) const;
     const(PropertyInfo) opIndex(string entityName, string propertyName) const;
 
@@ -61,18 +61,18 @@ abstract class EntityMetaData {
     public const(EntityInfo) findEntity(string entityName) const;
     public const(EntityInfo) findEntity(TypeInfo_Class entityClass) const;
     public const(EntityInfo) findEntityForObject(Object obj) const;
-    public const(EntityInfo) getEntity(int entityIndex) const;
-    public int getEntityCount() const;
+    public const(EntityInfo) getEntity(size_t entityIndex) const;
+    public size_t getEntityCount() const;
     /// Entity factory
     public Object createEntity(string entityName) const;
     /// Fills all properties of entity instance from dataset
-    public int readAllColumns(Object obj, DataSetReader r, int startColumn) const;
+    public size_t readAllColumns(Object obj, DataSetReader r, size_t startColumn) const;
     /// Puts all properties of entity instance to dataset
-    public int writeAllColumns(Object obj, DataSetWriter w, int startColumn, bool exceptKey = false) const;
+    public size_t writeAllColumns(Object obj, DataSetWriter w, size_t startColumn, bool exceptKey = false) const;
 
     public string generateFindAllForEntity(string entityName) const;
 
-    public int getFieldCount(const EntityInfo ei, bool exceptKey) const;
+    public size_t getFieldCount(const EntityInfo ei, bool exceptKey) const;
 
     public string getAllFieldList(const EntityInfo ei, bool exceptKey = false) const;
     public string getAllFieldList(string entityName, bool exceptKey = false) const;
@@ -102,9 +102,9 @@ enum RelationType {
 class PropertyInfo {
 public:
     /// reads simple property value from data set to object
-    alias void function(Object, DataSetReader, int index) ReaderFunc;
+    alias void function(Object, DataSetReader, size_t index) ReaderFunc;
     /// writes simple property value to data set from object
-    alias void function(Object, DataSetWriter, int index) WriterFunc;
+    alias void function(Object, DataSetWriter, size_t index) WriterFunc;
     /// copy property from second passed object to first
     alias void function(Object, Object) CopyFunc;
     /// returns simple property as Variant
@@ -139,7 +139,7 @@ public:
     immutable string propertyName;
     immutable string columnName;
     immutable Type columnType;
-    immutable int length;
+    immutable size_t length;
     immutable bool key;
     immutable bool generated;
     immutable bool nullable;
@@ -156,8 +156,8 @@ public:
     package PropertyInfo _referencedProperty;
     @property const(PropertyInfo) referencedProperty() const { return _referencedProperty; }
 
-    package int _columnOffset; // offset from first column of this entity in selects
-    @property int columnOffset() const { return _columnOffset; } // offset from first column of this entity in selects
+    package size_t _columnOffset; // offset from first column of this entity in selects
+    @property size_t columnOffset() const { return _columnOffset; } // offset from first column of this entity in selects
 
     package JoinTableInfo _joinTable;
     @property const (JoinTableInfo) joinTable() const { return _joinTable; }
@@ -185,7 +185,7 @@ public:
     @property bool manyToOne() const { return relation == RelationType.ManyToOne; };
     @property bool manyToMany() const { return relation == RelationType.ManyToMany; };
 
-    this(string propertyName, string columnName, Type columnType, int length, bool key, bool generated, bool nullable, string uniqueIndex, RelationType relation, string referencedEntityName, string referencedPropertyName, ReaderFunc reader, WriterFunc writer, GetVariantFunc getFunc, SetVariantFunc setFunc, KeyIsSetFunc keyIsSetFunc, IsNullFunc isNullFunc, 
+    this(string propertyName, string columnName, Type columnType, size_t length, bool key, bool generated, bool nullable, string uniqueIndex, RelationType relation, string referencedEntityName, string referencedPropertyName, ReaderFunc reader, WriterFunc writer, GetVariantFunc getFunc, SetVariantFunc setFunc, KeyIsSetFunc keyIsSetFunc, IsNullFunc isNullFunc, 
             CopyFunc copyFieldFunc, 
             GeneratorFunc generatorFunc = null,
             GetObjectFunc getObjectFunc = null, 
@@ -271,8 +271,8 @@ class EntityInfo {
     @property const(PropertyInfo[]) properties() const { return _properties; }
     package PropertyInfo [string] _propertyMap;
     immutable TypeInfo_Class classInfo;
-    private int _keyIndex;
-    @property int keyIndex() const { return _keyIndex; }
+    private size_t _keyIndex;
+    @property size_t keyIndex() const { return _keyIndex; }
     private PropertyInfo _keyProperty;
     @property const(PropertyInfo) keyProperty() const { return _keyProperty; }
 
@@ -299,7 +299,7 @@ class EntityInfo {
             p._entity = this;
             map[p.propertyName] = p;
             if (p.key) {
-                _keyIndex = cast(int)i;
+                _keyIndex = i;
                 _keyProperty = p;
             }
         }
@@ -309,7 +309,7 @@ class EntityInfo {
     /// returns key value as Variant from entity instance
     Variant getKey(Object obj) const { return keyProperty.getFunc(obj); }
     /// returns key value as Variant from data set
-    Variant getKey(DataSetReader r, int startColumn) const { return r.getVariant(startColumn + keyProperty.columnOffset); }
+    Variant getKey(DataSetReader r, size_t startColumn) const { return r.getVariant(startColumn + keyProperty.columnOffset); }
     /// sets key value from Variant
     void setKey(Object obj, Variant value) const { keyProperty.setFunc(obj, value); }
     /// returns property info for key property
@@ -317,7 +317,7 @@ class EntityInfo {
     /// checks if primary key is set (for non-nullable member types like int or long, 0 is considered as non-set)
     bool isKeySet(Object obj) const { return keyProperty.keyIsSetFunc(obj); }
     /// checks if primary key is set (for non-nullable member types like int or long, 0 is considered as non-set)
-    bool isKeyNull(DataSetReader r, int startColumn) const { return r.isNull(startColumn + keyProperty.columnOffset); }
+    bool isKeyNull(DataSetReader r, size_t startColumn) const { return r.isNull(startColumn + keyProperty.columnOffset); }
     /// checks if property value is null
     bool isNull(Object obj) const { return keyProperty.isNullFunc(obj); }
     /// returns property value as Variant
@@ -335,7 +335,7 @@ class EntityInfo {
 
     @property size_t length() const { return properties.length; }
 
-    const(PropertyInfo) opIndex(int index) const {
+    const(PropertyInfo) opIndex(size_t index) const {
         return properties[index];
     }
 
@@ -344,7 +344,7 @@ class EntityInfo {
     }
 
     /// returns property by index
-    const(PropertyInfo) getProperty(int propertyIndex) const { return properties[propertyIndex]; }
+    const(PropertyInfo) getProperty(size_t propertyIndex) const { return properties[propertyIndex]; }
     /// returns property by name, throws exception if not found
     const(PropertyInfo) findProperty(string propertyName) const {
         if(auto prop = propertyName in _propertyMap)
@@ -820,7 +820,7 @@ enum PropertyMemberKind : int {
 }
 
 bool hasPercentSign(immutable string str) {
-    foreach(ch; str) {
+    foreach(char ch; str) {
         if (ch == '%')
             return true;
     }
@@ -828,12 +828,12 @@ bool hasPercentSign(immutable string str) {
 }
 
 int percentSignCount(immutable string str) {
-    string res;
-    foreach(ch; str) {
+    int count=0;
+    foreach(char ch; str) {
         if (ch == '%')
-            res ~= "%";
+            count++;
     }
-    return cast(int)res.length;
+    return count;
 }
 
 string substituteParam(immutable string fmt, immutable string value) {
@@ -875,7 +875,7 @@ string substituteParam(immutable string fmt, immutable string value) {
 //}
 
 string substituteParamTwice(immutable string fmt, immutable string value) {
-    immutable int paramCount = cast(int)percentSignCount(fmt);
+    immutable int paramCount = percentSignCount(fmt);
     if (paramCount == 1)
         return format(fmt, value);
     else if (paramCount == 2)
@@ -2731,12 +2731,12 @@ string getSimplePropertyDef(T, immutable string m)() {
     immutable string isNullCode = getColumnTypeIsNullCode!(T,m);
     immutable string copyFieldCode = getPropertyCopyCode!(T,m);
     immutable string readerFuncDef = "\n" ~
-        "function(Object obj, DataSetReader r, int index) { \n" ~ 
+        "function(Object obj, DataSetReader r, size_t index) { \n" ~ 
             "    " ~ entityClassName ~ " entity = cast(" ~ entityClassName ~ ")obj; \n" ~
             "    " ~ propertyWriteCode ~ " \n" ~
             " }\n";
     immutable string writerFuncDef = "\n" ~
-        "function(Object obj, DataSetWriter r, int index) { \n" ~ 
+        "function(Object obj, DataSetWriter r, size_t index) { \n" ~ 
             "    " ~ entityClassName ~ " entity = cast(" ~ entityClassName ~ ")obj; \n" ~
             "    " ~ datasetWriteCode ~ " \n" ~
             " }\n";
@@ -2981,7 +2981,7 @@ abstract class SchemaInfo : EntityMetaData {
     override @property size_t length() const {
         return getEntityCount();
     }
-    override const(EntityInfo) opIndex(int index) const {
+    override const(EntityInfo) opIndex(size_t index) const {
         return getEntity(index);
     }
     override const(EntityInfo) opIndex(string entityName) const {
@@ -3050,8 +3050,8 @@ abstract class SchemaInfo : EntityMetaData {
         return query;
     }
     
-    override public int getFieldCount(const EntityInfo ei, bool exceptKey) const {
-        int count = 0;
+    override public size_t getFieldCount(const EntityInfo ei, bool exceptKey) const {
+        size_t count = 0;
         foreach(pi; ei) {
             if (pi.key && exceptKey)
                 continue;
@@ -3098,14 +3098,14 @@ abstract class SchemaInfo : EntityMetaData {
         return getAllFieldList(findEntity(entityName), exceptKey);
     }
 
-    override public int readAllColumns(Object obj, DataSetReader r, int startColumn) const {
+    override public size_t readAllColumns(Object obj, DataSetReader r, size_t startColumn) const {
         auto ei = findEntityForObject(obj);
-        int columnCount = 0;
+        size_t columnCount = 0;
         foreach(pi; ei) {
             if (pi.embedded) {
                 auto emei = pi.referencedEntity;
                 Object em = emei.createEntity();
-                int columnsRead = readAllColumns(em, r, startColumn + columnCount);
+                size_t columnsRead = readAllColumns(em, r, startColumn + columnCount);
                 pi.setObjectFunc(obj, em);
                 columnCount += columnsRead;
             } else if (pi.oneToOne || pi.manyToOne) {
@@ -3126,10 +3126,10 @@ abstract class SchemaInfo : EntityMetaData {
         return columnCount;
     }
 
-    override public int writeAllColumns(Object obj, DataSetWriter w, int startColumn, bool exceptKey = false) const {
+    override public size_t writeAllColumns(Object obj, DataSetWriter w, size_t startColumn, bool exceptKey = false) const {
         auto ei = findEntityForObject(obj);
         //writeln(ei.name ~ ".writeAllColumns");
-        int columnCount = 0;
+        size_t columnCount = 0;
         foreach(pi; ei) {
             if (pi.key && exceptKey)
                 continue;
@@ -3142,7 +3142,7 @@ abstract class SchemaInfo : EntityMetaData {
                     em = emei.createEntity();
                 assert(em !is null, "embedded object is null");
                 //writeln("writing embedded entity " ~ emei.name);
-                int columnsWritten = writeAllColumns(em, w, startColumn + columnCount);
+                size_t columnsWritten = writeAllColumns(em, w, startColumn + columnCount);
                 //writeln("written");
                 columnCount += columnsWritten;
             } else if (pi.oneToOne || pi.manyToOne) {
@@ -3210,7 +3210,7 @@ class SchemaInfoImpl(T...) : SchemaInfo {
     //pragma(msg, entityListDef!(T)());
     mixin(entityListDef!(T)());
 
-    override public int getEntityCount() const { return cast(int)entities.length; }
+    override public size_t getEntityCount() const { return entities.length; }
 
     override public const(EntityInfo[]) getEntities() const  { return entities; }
     override public const(EntityInfo[string]) getEntityMap() const  { return entityMap; }
@@ -3235,7 +3235,7 @@ class SchemaInfoImpl(T...) : SchemaInfo {
         return classMap[entityClass]; 
     }
 
-    override public const(EntityInfo) getEntity(int entityIndex) const { 
+    override public const(EntityInfo) getEntity(size_t entityIndex) const { 
         enforceEx!MappingException(entityIndex >= 0 && entityIndex < entities.length, "Invalid entity index " ~ to!string(entityIndex));
         return entities[entityIndex]; 
     }
@@ -3253,7 +3253,7 @@ class SchemaInfoImpl(T...) : SchemaInfo {
         // update entity._metadata reference
         foreach(e; entities) {
             e._metadata = this;
-            int columnOffset = 0;
+            size_t columnOffset = 0;
             foreach(p; e._properties) {
                 if (p.manyToMany) {
                     p.updateJoinTable();
@@ -3362,7 +3362,7 @@ class DBInfo {
                 res ~= table.getCreateTableSQL();
         }
         return res;
-    }
+    } 
     string[] getCreateIndexSQL(string[] existingTables = null) {
         auto map = arrayToMap(existingTables);
         string[] res;
@@ -3720,7 +3720,7 @@ unittest {
                                                             new PropertyInfo("login", "login", new StringType(), 0, false, false, true, null, RelationType.None, null, null, null, null, null, null, null, null, null),
                                                             new PropertyInfo("testColumn", "testcolumn", new NumberType(10,false,SqlType.INTEGER), 0, false, false, true, null, RelationType.None, null, null, null, null, null, null, null, null, null)], null);
 
-    //void function(User, DataSetReader, int) readFunc = function(User entity, DataSetReader reader, int index) { };
+    //void function(User, DataSetReader, int) readFunc = function(User entity, DataSetReader reader, size_t index) { };
 
     assert(ei.findProperty("name").columnName == "name_column");
     assert(ei.getProperties()[0].columnName == "id_column");

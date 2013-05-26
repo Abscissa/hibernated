@@ -19,6 +19,7 @@ import std.algorithm;
 import std.exception;
 import std.array;
 import std.string;
+import std.typecons;
 import std.conv;
 import std.stdio;
 import std.variant;
@@ -42,16 +43,16 @@ class FromClauseItem {
     const EntityInfo entity;
     string entityAlias;
     string sqlAlias;
-    int startColumn;
-    int selectedColumns;
+    size_t startColumn;
+    size_t selectedColumns;
     // for JOINs
     JoinType joinType = JoinType.InnerJoin;
     bool fetch;
     FromClauseItem base;
     const PropertyInfo baseProperty;
     string pathString;
-    int index;
-    int selectIndex;
+    size_t index;
+    Nullable!size_t selectIndex;
 
     string getFullPath() {
         if (base is null)
@@ -66,7 +67,7 @@ class FromClauseItem {
         this.fetch = fetch;
         this.base = base;
         this.baseProperty = baseProperty;
-        this.selectIndex = -1;
+        this.selectIndex.nullify();
     }
 
 }
@@ -77,7 +78,7 @@ class FromClause {
         FromClauseItem item = new FromClauseItem(entity, entityAlias, joinType, fetch, base, baseProperty);
         item.entityAlias = entityAlias is null ? "_a" ~ to!string(items.length + 1) : entityAlias;
         item.sqlAlias = "_t" ~ to!string(items.length + 1);
-        item.index = cast(int)items.length;
+        item.index = items.length;
         item.pathString = item.getFullPath();
         items ~= item;
         return item;
@@ -89,7 +90,7 @@ class FromClause {
     @property FromClauseItem first() {
         return items[0];
     }
-    FromClauseItem opIndex(int index) {
+    FromClauseItem opIndex(size_t index) {
         enforceEx!HibernatedException(index >= 0 && index < items.length, "FromClause index out of range: " ~ to!string(index));
         return items[index];
     }
@@ -154,7 +155,7 @@ class QueryParser {
     }
     
     void parse() {
-        processParameterNames(0, cast(int)tokens.length); // replace pairs {: Ident} with single Parameter token
+        processParameterNames(0, tokens.length); // replace pairs {: Ident} with single Parameter token
         int len = cast(int)tokens.length;
         //writeln("Query tokens: " ~ to!string(len));
         int fromPos = findKeyword(KeywordType.FROM);
@@ -190,12 +191,12 @@ class QueryParser {
     }
     
     private void prepareSelectFields() {
-        int startColumn = 1;
-        for (int i=0; i < fromClause.length; i++) {
+        size_t startColumn = 1;
+        for (size_t i=0; i < fromClause.length; i++) {
             FromClauseItem item = fromClause[i];
             if (!item.fetch)
                 continue;
-            int count = item.entity.metadata.getFieldCount(item.entity, false);
+            size_t count = item.entity.metadata.getFieldCount(item.entity, false);
             if (count > 0) {
                 item.startColumn = startColumn;
                 item.selectedColumns = count;
@@ -283,14 +284,14 @@ class QueryParser {
         }
     }
     
-    private void splitCommaDelimitedList(int start, int end, void delegate(int, int) callback) {
+    private void splitCommaDelimitedList(size_t start, size_t end, void delegate(size_t, size_t) callback) {
         //writeln("SPLIT " ~ to!string(start) ~ " .. " ~ to!string(end));
-        int len = cast(int)tokens.length;
-        int p = start;
-        for (int i = start; i < end; i++) {
-            if (tokens[i].type == TokenType.Comma || i == end - 1) {
-                enforceEx!QuerySyntaxException(tokens[i].type != TokenType.Comma || i != end - 1, "Invalid comma at end of list" ~ errorContext(tokens[start]));
-                int endp = i < end - 1 ? i : end;
+        size_t len = tokens.length;
+        size_t p = start;
+        for (size_t i = start; i < end; i++) {
+            if (tokens[i].type == TokenType.Comma || i + 1 == end) {
+                enforceEx!QuerySyntaxException(tokens[i].type != TokenType.Comma || i + 1 != end, "Invalid comma at end of list" ~ errorContext(tokens[start]));
+                size_t endp = i + 1 < end ? i : end;
                 enforceEx!QuerySyntaxException(endp > p, "Invalid comma delimited list" ~ errorContext(tokens[start]));
                 callback(p, endp);
                 p = i + 1;
@@ -298,8 +299,8 @@ class QueryParser {
         }
     }
 
-    private int parseFieldRef(int start, int end, ref string[] path) {
-        int pos = start;
+    private size_t parseFieldRef(size_t start, size_t end, ref string[] path) {
+        size_t pos = start;
         while (pos < end) {
             if (tokens[pos].type == TokenType.Ident || tokens[pos].type == TokenType.Alias) {
                 enforceEx!QuerySyntaxException(path.length == 0 || tokens[pos].type != TokenType.Alias, "Alias is allowed only as first item" ~ errorContext(tokens[pos]));
@@ -307,7 +308,7 @@ class QueryParser {
                 pos++;
                 if (pos == end || tokens[pos].type != TokenType.Dot)
                     return pos;
-                if (pos == end - 1 || tokens[pos + 1].type != TokenType.Ident)
+                if (pos + 1 == end || tokens[pos + 1].type != TokenType.Ident)
                     return pos;
                 pos++;
             } else {
@@ -319,7 +320,7 @@ class QueryParser {
         return pos;
     }
     
-    private void parseFirstFromClause(int start, int end, out int pos) {
+    private void parseFirstFromClause(size_t start, size_t end, out size_t pos) {
         enforceEx!QuerySyntaxException(start < end, "Invalid FROM clause " ~ errorContext(tokens[start]));
         // minimal support:
         //    Entity
@@ -330,7 +331,7 @@ class QueryParser {
         auto ei = metadata.findEntity(entityName);
         updateEntity(ei, entityName);
         string aliasName = null;
-        int p = start + 1;
+        size_t p = start + 1;
         if (p < end && tokens[p].type == TokenType.Keyword && tokens[p].keyword == KeywordType.AS)
             p++;
         if (p < end) {
@@ -345,7 +346,7 @@ class QueryParser {
     }
 
     void appendFromClause(Token context, string[] path, string aliasName, JoinType joinType, bool fetch) {
-        int p = 0;
+        size_t p = 0;
         enforceEx!QuerySyntaxException(fromClause.hasAlias(path[p]), "Unknown alias " ~ path[p] ~ " in FROM clause" ~ errorContext(context));
         FromClauseItem baseClause = findFromClauseByAlias(path[p]);
         //string pathString = path[p];
@@ -369,8 +370,8 @@ class QueryParser {
         }
     }
 
-    void parseFromClause(int start, int end) {
-        int p = start;
+    void parseFromClause(size_t start, size_t end) {
+        size_t p = start;
         parseFirstFromClause(start, end, p);
         while (p < end) {
             Token context = tokens[p];
@@ -407,8 +408,8 @@ class QueryParser {
     }
     
     // in pairs {: Ident} replace type of ident with Parameter 
-    void processParameterNames(int start, int end) {
-        for (int i = start; i < end; i++) {
+    void processParameterNames(size_t start, size_t end) {
+        for (size_t i = start; i < end; i++) {
             if (tokens[i].type == TokenType.Parameter) {
                 parameterNames ~= cast(string)tokens[i].text;
             }
@@ -452,7 +453,8 @@ class QueryParser {
         //insertInPlace(orderByClause, 0, item);
     }
     
-    void parseOrderByClauseItem(int start, int end) {
+    void parseOrderByClauseItem(size_t start, size_t end) {
+		assert(end >= 1);
         // for each comma delimited item
         // in current version it can only be
         // {property}  or  {alias . property} optionally followed by ASC or DESC
@@ -465,11 +467,11 @@ class QueryParser {
             end--;
         }
         enforceEx!QuerySyntaxException(start < end, "Empty ORDER BY clause item" ~ errorContext(tokens[start]));
-        if (start == end - 1) {
+        if (start + 1 == end) {
             // no alias
             enforceEx!QuerySyntaxException(tokens[start].type == TokenType.Ident, "Property name expected in ORDER BY clause" ~ errorContext(tokens[start]));
             addOrderByClauseItem(null, cast(string)tokens[start].text, asc);
-        } else if (start == end - 3) {
+        } else if (start + 3 == end) {
             enforceEx!QuerySyntaxException(tokens[start].type == TokenType.Alias, "Entity alias expected in ORDER BY clause" ~ errorContext(tokens[start]));
             enforceEx!QuerySyntaxException(tokens[start + 1].type == TokenType.Dot, "Dot expected after entity alias in ORDER BY clause" ~ errorContext(tokens[start]));
             enforceEx!QuerySyntaxException(tokens[start + 2].type == TokenType.Ident, "Property name expected after entity alias in ORDER BY clause" ~ errorContext(tokens[start]));
@@ -480,20 +482,20 @@ class QueryParser {
         }
     }
     
-    void parseSelectClauseItem(int start, int end) {
+    void parseSelectClauseItem(size_t start, size_t end) {
         // for each comma delimited item
         // in current version it can only be
         // {property}  or  {alias . property}
         //writeln("SELECT ITEM: " ~ to!string(start) ~ " .. " ~ to!string(end));
         enforceEx!QuerySyntaxException(tokens[start].type == TokenType.Ident || tokens[start].type == TokenType.Alias, "Property name or alias expected in SELECT clause in query " ~ query ~ errorContext(tokens[start]));
         string aliasName;
-        int p = start;
+        size_t p = start;
         if (tokens[p].type == TokenType.Alias) {
             //writeln("select clause alias: " ~ tokens[p].text ~ " query: " ~ query);
             aliasName = cast(string)tokens[p].text;
             p++;
             enforceEx!QuerySyntaxException(p == end || tokens[p].type == TokenType.Dot, "SELECT clause item is invalid (only  [alias.]field{[.field2]}+ allowed) " ~ errorContext(tokens[start]));
-            if (p < end - 1 && tokens[p].type == TokenType.Dot)
+            if (p + 1 < end && tokens[p].type == TokenType.Dot)
                 p++;
         } else {
             //writeln("select clause non-alias: " ~ tokens[p].text ~ " query: " ~ query);
@@ -502,7 +504,7 @@ class QueryParser {
         while (p < end && tokens[p].type == TokenType.Ident) {
             fieldNames ~= tokens[p].text;
             p++;
-            if (p > end - 1 || tokens[p].type != TokenType.Dot)
+            if (p + 1 > end || tokens[p].type != TokenType.Dot)
                 break;
             // skipping dot
             p++;
@@ -512,7 +514,7 @@ class QueryParser {
         addSelectClauseItem(aliasName, fieldNames);
     }
     
-    void parseSelectClause(int start, int end) {
+    void parseSelectClause(size_t start, size_t end) {
         enforceEx!QuerySyntaxException(start < end, "Invalid SELECT clause" ~ errorContext(tokens[start]));
         splitCommaDelimitedList(start, end, &parseSelectClauseItem);
     }
@@ -535,7 +537,7 @@ class QueryParser {
         return aliasCount > 0;
     }
     
-    void parseWhereClause(int start, int end) {
+    void parseWhereClause(size_t start, size_t end) {
         enforceEx!QuerySyntaxException(start < end, "Invalid WHERE clause" ~ errorContext(tokens[start]));
         whereClause = new Token(tokens[start].pos, TokenType.Expression, tokens, start, end);
         //writeln("before convert fields:\n" ~ whereClause.dump(0));
@@ -557,20 +559,24 @@ class QueryParser {
         while (true) {
             if (items.length == 0)
                 return;
-            int lastOpen = -1;
-            int firstClose = -1;
-            for (int i=0; i<items.length; i++) {
+            bool lastOpenFound = false;
+            bool firstCloseFound = false;
+            size_t lastOpen = 0;
+            size_t firstClose = 0;
+            for (size_t i=0; i<items.length; i++) {
                 if (items[i].type == TokenType.OpenBracket) {
                     lastOpen = i;
+                    lastOpenFound = true;
                 } if (items[i].type == TokenType.CloseBracket) {
                     firstClose = i;
+                    firstCloseFound = true;
                     break;
                 }
             }
-            if (lastOpen == -1 && firstClose == -1)
+            if (!lastOpenFound && !firstCloseFound)
                 return;
             //writeln("folding braces " ~ to!string(lastOpen) ~ " .. " ~ to!string(firstClose));
-            enforceEx!QuerySyntaxException(lastOpen >= 0 && lastOpen < firstClose, "Unpaired braces in WHERE clause" ~ errorContext(tokens[lastOpen]));
+            enforceEx!QuerySyntaxException(lastOpenFound && firstCloseFound && lastOpen < firstClose, "Unpaired braces in WHERE clause" ~ errorContext(tokens[lastOpen]));
             Token folded = new Token(items[lastOpen].pos, TokenType.Braces, items, lastOpen + 1, firstClose);
             //			size_t oldlen = items.length;
             //			int removed = firstClose - lastOpen;
@@ -585,7 +591,7 @@ class QueryParser {
             if (t.children.length > 0)
                 dropBraces(t.children);
         }
-        for (int i=0; i<items.length; i++) {
+        for (size_t i=0; i<items.length; i++) {
             if (items[i].type != TokenType.Braces)
                 continue;
             if (items[i].children.length == 1) {
@@ -596,24 +602,38 @@ class QueryParser {
     }
     
     void convertIsNullIsNotNull(ref Token[] items) {
-        for (int i = cast(int)items.length - 2; i >= 0; i--) {
-            if (items[i].type != TokenType.Operator || items[i + 1].type != TokenType.Keyword)
-                continue;
-            if (items[i].operator == OperatorType.IS && items[i + 1].keyword == KeywordType.NULL) {
-                Token folded = new Token(items[i].pos,OperatorType.IS_NULL, "IS NULL");
-                replaceInPlace(items, i, i + 2, [folded]);
-                i-=2;
-            }
-        }
-        for (int i = cast(int)items.length - 3; i >= 0; i--) {
-            if (items[i].type != TokenType.Operator || items[i + 1].type != TokenType.Operator || items[i + 2].type != TokenType.Keyword)
-                continue;
-            if (items[i].operator == OperatorType.IS && items[i + 1].operator == OperatorType.NOT && items[i + 2].keyword == KeywordType.NULL) {
-                Token folded = new Token(items[i].pos, OperatorType.IS_NOT_NULL, "IS NOT NULL");
-                replaceInPlace(items, i, i + 3, [folded]);
-                i-=3;
-            }
-        }
+        if (items.length > 2) {
+			for (size_t i = items.length - 2; true; i--) {
+				if (items[i].type != TokenType.Operator || items[i + 1].type != TokenType.Keyword) {
+					if (i < 1)
+						break;
+					continue;
+				}
+				if (items[i].operator == OperatorType.IS && items[i + 1].keyword == KeywordType.NULL) {
+					Token folded = new Token(items[i].pos,OperatorType.IS_NULL, "IS NULL");
+					replaceInPlace(items, i, i + 2, [folded]);
+					if (i < 2)
+						break;
+					i-=2;
+				}
+			}
+		}
+        if (items.length > 3) {
+			for (size_t i = items.length - 3; true; i--) {
+				if (items[i].type != TokenType.Operator || items[i + 1].type != TokenType.Operator || items[i + 2].type != TokenType.Keyword) {
+					if (i < 1)
+						break;
+					continue;
+				}
+				if (items[i].operator == OperatorType.IS && items[i + 1].operator == OperatorType.NOT && items[i + 2].keyword == KeywordType.NULL) {
+					Token folded = new Token(items[i].pos, OperatorType.IS_NOT_NULL, "IS NOT NULL");
+					replaceInPlace(items, i, i + 3, [folded]);
+					if (i < 3)
+						break;
+					i-=3;
+				}
+			}
+		}
     }
     
     void convertFields(ref Token[] items) {
@@ -694,7 +714,7 @@ class QueryParser {
             if (t.children.length > 0)
                 convertUnaryPlusMinus(t.children);
         }
-        for (int i=0; i<items.length; i++) {
+        for (size_t i=0; i<items.length; i++) {
             if (items[i].type != TokenType.Operator)
                 continue;
             OperatorType op = items[i].operator;
@@ -714,12 +734,12 @@ class QueryParser {
     void foldCommaSeparatedList(Token braces) {
         // fold inside braces
         Token[] items = braces.children;
-        int start = 0;
+        size_t start = 0;
         Token[] list;
-        for (int i=0; i <= items.length; i++) {
+        for (size_t i=0; i <= items.length; i++) {
             if (i == items.length || items[i].type == TokenType.Comma) {
                 enforceEx!QuerySyntaxException(i > start, "Empty item in comma separated list" ~ errorContext(items[i]));
-                enforceEx!QuerySyntaxException(i != items.length - 1, "Empty item in comma separated list" ~ errorContext(items[i]));
+                enforceEx!QuerySyntaxException(i + 1 != items.length, "Empty item in comma separated list" ~ errorContext(items[i]));
                 Token item = new Token(items[start].pos, TokenType.Expression, braces.children, start, i);
                 foldOperators(item.children);
                 enforceEx!QuerySyntaxException(item.children.length == 1, "Invalid expression in list item" ~ errorContext(items[i]));
@@ -801,7 +821,7 @@ class QueryParser {
         }
     }
     
-    void parseOrderClause(int start, int end) {
+    void parseOrderClause(size_t start, size_t end) {
         enforceEx!QuerySyntaxException(start < end, "Invalid ORDER BY clause" ~ errorContext(tokens[start]));
         splitCommaDelimitedList(start, end, &parseOrderByClauseItem);
     }
@@ -846,7 +866,7 @@ class QueryParser {
         assert(selectClause.length > 0);
         int colCount = 0;
         foreach(i, s; selectClause) {
-            s.from.selectIndex = cast(int)i;
+            s.from.selectIndex = Nullable!size_t(i);
         }
         if (selectClause[0].prop is null) {
             // object alias is specified: add all properties of object
@@ -989,7 +1009,7 @@ class QueryParser {
             res.addParam(t.text);
         } else if (t.type == TokenType.CommaDelimitedList) {
             bool first = true;
-            for (int i=0; i<t.children.length; i++) {
+            for (size_t i=0; i<t.children.length; i++) {
                 if (!first)
                     res.appendSQL(", ");
                 else
@@ -1255,11 +1275,11 @@ int operatorPrecedency(OperatorType t) {
     }
 }
 
-OperatorType isOperator(string s, ref int i) {
-    int len = cast(int)s.length;
+OperatorType isOperator(string s, ref size_t i) {
+    size_t len = s.length;
     char ch = s[i];
-    char ch2 = i < len - 1 ? s[i + 1] : 0;
-    //char ch3 = i < len - 2 ? s[i + 2] : 0;
+    char ch2 = i + 1 < len ? s[i + 1] : 0;
+    //char ch3 = i + 2 < len ? s[i + 2] : 0;
     if (ch == '=' && ch2 == '=') { i++; return OperatorType.EQ; } // ==
     if (ch == '!' && ch2 == '=') { i++; return OperatorType.NE; } // !=
     if (ch == '<' && ch2 == '>') { i++; return OperatorType.NE; } // <>
@@ -1298,7 +1318,7 @@ enum TokenType {
 }
 
 class Token {
-    int pos;
+    size_t pos;
     TokenType type;
     KeywordType keyword = KeywordType.NONE;
     OperatorType operator = OperatorType.NONE;
@@ -1308,32 +1328,32 @@ class Token {
     PropertyInfo field;
     FromClauseItem from;
     Token[] children;
-    this(int pos, TokenType type, string text) {
+    this(size_t pos, TokenType type, string text) {
         this.pos = pos;
         this.type = type;
         this.text = text;
     }
-    this(int pos, KeywordType keyword, string text) {
+    this(size_t pos, KeywordType keyword, string text) {
         this.pos = pos;
         this.type = TokenType.Keyword;
         this.keyword = keyword;
         this.text = text;
     }
-    this(int pos, OperatorType op, string text) {
+    this(size_t pos, OperatorType op, string text) {
         this.pos = pos;
         this.type = TokenType.Operator;
         this.operator = op;
         this.text = text;
     }
-    this(int pos, TokenType type, Token[] base, int start, int end) {
+    this(size_t pos, TokenType type, Token[] base, size_t start, size_t end) {
         this.pos = pos;
         this.type = type;
         this.children = new Token[end - start];
-        for (int i = start; i < end; i++)
+        for (size_t i = start; i < end; i++)
             children[i - start] = base[i];
     }
     // unary operator expression
-    this(int pos, OperatorType type, string text, Token right) {
+    this(size_t pos, OperatorType type, string text, Token right) {
         this.pos = pos;
         this.type = TokenType.OpExpr;
         this.operator = type;
@@ -1342,7 +1362,7 @@ class Token {
         this.children[0] = right;
     }
     // binary operator expression
-    this(int pos, OperatorType type, string text, Token left, Token right) {
+    this(size_t pos, OperatorType type, string text, Token left, Token right) {
         this.pos = pos;
         this.type = TokenType.OpExpr;
         this.text = text;
@@ -1395,13 +1415,13 @@ class Token {
 
 Token[] tokenize(string s) {
     Token[] res;
-    int startpos = 0;
+    size_t startpos = 0;
     int state = 0;
-    int len = cast(int)s.length;
-    for (int i=0; i<len; i++) {
+    size_t len = s.length;
+    for (size_t i=0; i<len; i++) {
         char ch = s[i];
-        char ch2 = i < len - 1 ? s[i + 1] : 0;
-        char ch3 = i < len - 2 ? s[i + 2] : 0;
+        char ch2 = i + 1 < len ? s[i + 1] : 0;
+        char ch3 = i + 2 < len ? s[i + 2] : 0;
         string text;
         bool quotedIdent = ch == '`';
         startpos = i;
@@ -1413,7 +1433,7 @@ Token[] tokenize(string s) {
             // parameter name
             i++;
             // && state == 0
-            for(int j=i; j<len; j++) {
+            for(size_t j=i; j<len; j++) {
                 if (isAlphaNum(s[j])) {
                     text ~= s[j];
                     i = j;
@@ -1427,10 +1447,10 @@ Token[] tokenize(string s) {
             // identifier or keyword
             if (quotedIdent) {
                 i++;
-                enforceEx!QuerySyntaxException(i < len - 1, "Invalid quoted identifier near " ~ cast(string)s[startpos .. $]);
+                enforceEx!QuerySyntaxException(i + 1 < len, "Invalid quoted identifier near " ~ cast(string)s[startpos .. $]);
             }
             // && state == 0
-            for(int j=i; j<len; j++) {
+            for(size_t j=i; j<len; j++) {
                 if (isAlphaNum(s[j])) {
                     text ~= s[j];
                     i = j;
@@ -1440,7 +1460,7 @@ Token[] tokenize(string s) {
             }
             enforceEx!QuerySyntaxException(text.length > 0, "Invalid quoted identifier near " ~ cast(string)s[startpos .. $]);
             if (quotedIdent) {
-                enforceEx!QuerySyntaxException(i < len - 1 && s[i + 1] == '`', "Invalid quoted identifier near " ~ cast(string)s[startpos .. $]);
+                enforceEx!QuerySyntaxException(i + 1 < len && s[i + 1] == '`', "Invalid quoted identifier near " ~ cast(string)s[startpos .. $]);
                 i++;
             }
             KeywordType keywordId = isKeyword(text);
@@ -1454,7 +1474,7 @@ Token[] tokenize(string s) {
                 res ~= new Token(startpos, TokenType.Ident, text);
         } else if (isWhite(ch)) {
             // whitespace
-            for(int j=i; j<len; j++) {
+            for(size_t j=i; j<len; j++) {
                 if (isWhite(s[j])) {
                     text ~= s[j];
                     i = j;
@@ -1470,7 +1490,7 @@ Token[] tokenize(string s) {
         } else if (ch == '\'') {
             // string constant
             i++;
-            for(int j=i; j<len; j++) {
+            for(size_t j=i; j<len; j++) {
                 if (s[j] != '\'') {
                     text ~= s[j];
                     i = j;
@@ -1478,7 +1498,7 @@ Token[] tokenize(string s) {
                     break;
                 }
             }
-            enforceEx!QuerySyntaxException(i < len - 1 && s[i + 1] == '\'', "Unfinished string near " ~ cast(string)s[startpos .. $]);
+            enforceEx!QuerySyntaxException(i + 1 < len && s[i + 1] == '\'', "Unfinished string near " ~ cast(string)s[startpos .. $]);
             i++;
             res ~= new Token(startpos, TokenType.String, text);
         } else if (isDigit(ch) || (ch == '.' && isDigit(ch2))) {
@@ -1487,7 +1507,7 @@ Token[] tokenize(string s) {
                 // .25
                 text ~= '.';
                 i++;
-                for(int j = i; j<len; j++) {
+                for(size_t j = i; j<len; j++) {
                     if (isDigit(s[j])) {
                         text ~= s[j];
                         i = j;
@@ -1497,7 +1517,7 @@ Token[] tokenize(string s) {
                 }
             } else {
                 // 123
-                for(int j=i; j<len; j++) {
+                for(size_t j=i; j<len; j++) {
                     if (isDigit(s[j])) {
                         text ~= s[j];
                         i = j;
@@ -1506,10 +1526,10 @@ Token[] tokenize(string s) {
                     }
                 }
                 // .25
-                if (i < len - 1 && s[i + 1] == '.') {
+                if (i + 1 < len && s[i + 1] == '.') {
                     text ~= '.';
                     i++;
-                    for(int j = i; j<len; j++) {
+                    for(size_t j = i; j<len; j++) {
                         if (isDigit(s[j])) {
                             text ~= s[j];
                             i = j;
@@ -1519,15 +1539,15 @@ Token[] tokenize(string s) {
                     }
                 }
             }
-            if (i < len - 1 && toLower(s[i + 1]) == 'e') {
+            if (i + 1 < len && toLower(s[i + 1]) == 'e') {
                 text ~= s[i+1];
                 i++;
-                if (i < len - 1 && (s[i + 1] == '-' || s[i + 1] == '+')) {
+                if (i + 1 < len && (s[i + 1] == '-' || s[i + 1] == '+')) {
                     text ~= s[i+1];
                     i++;
                 }
-                enforceEx!QuerySyntaxException(i < len - 1 && isDigit(s[i]), "Invalid number near " ~ cast(string)s[startpos .. $]);
-                for(int j = i; j<len; j++) {
+                enforceEx!QuerySyntaxException(i + 1 < len && isDigit(s[i]), "Invalid number near " ~ cast(string)s[startpos .. $]);
+                for(size_t j = i; j<len; j++) {
                     if (isDigit(s[j])) {
                         text ~= s[j];
                         i = j;
@@ -1536,7 +1556,7 @@ Token[] tokenize(string s) {
                     }
                 }
             }
-            enforceEx!QuerySyntaxException(i >= len - 1 || !isAlpha(s[i]), "Invalid number near " ~ cast(string)s[startpos .. $]);
+            enforceEx!QuerySyntaxException(i + 1 >= len || !isAlpha(s[i]), "Invalid number near " ~ cast(string)s[startpos .. $]);
             res ~= new Token(startpos, TokenType.Number, text);
         } else if (ch == '.') {
             res ~= new Token(startpos, TokenType.Dot, ".");
@@ -1571,9 +1591,9 @@ unittest {
 
 class ParameterValues {
     Variant[string] values;
-    int[][string]params;
-    int[string]unboundParams;
-    this(int[][string]params) {
+    size_t[][string]params;
+    size_t[string]unboundParams;
+    this(size_t[][string]params) {
         this.params = params;
         foreach(key, value; params) {
             unboundParams[key] = 1;
@@ -1607,8 +1627,8 @@ class ParameterValues {
 class ParsedQuery {
     private string _hql;
     private string _sql;
-    private int[][string]params; // contains 1-based indexes of ? ? ? placeholders in SQL for param by name
-    private int paramIndex = 1;
+    private size_t[][string]params; // contains 1-based indexes of ? ? ? placeholders in SQL for param by name
+    private size_t paramIndex = 1;
     private FromClause _from;
     private SelectClauseItem[] _select;
     private EntityInfo _entity;
@@ -1639,7 +1659,7 @@ class ParsedQuery {
             params[paramName] ~= [paramIndex++];
         }
     }
-    int[] getParam(string paramName) {
+    size_t[] getParam(string paramName) {
         if ((paramName in params) is null) {
             throw new HibernatedException("Parameter " ~ paramName ~ " not found in query " ~ _hql);
         } else {

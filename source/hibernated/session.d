@@ -17,6 +17,7 @@ module hibernated.session;
 import std.algorithm;
 import std.conv;
 import std.stdio;
+import std.typecons;
 import std.exception;
 import std.variant;
 
@@ -591,7 +592,7 @@ class SessionImpl : Session {
         {
             PreparedStatement stmt = conn.prepareStatement(query);
             scope(exit) stmt.close();
-            int columnCount = metaData.writeAllColumns(obj, stmt, 1, true);
+            size_t columnCount = metaData.writeAllColumns(obj, stmt, 1, true);
             info.keyProperty.writeFunc(obj, stmt, columnCount + 1);
             stmt.executeUpdate();
         }
@@ -696,7 +697,7 @@ struct ObjectList {
         }
         list ~= obj;
     }
-    @property int length() { return cast(int)list.length; }
+    @property size_t length() { return list.length; }
     ref Object opIndex(size_t index) {
         return list[index];
     }
@@ -720,7 +721,7 @@ class PropertyLoadItem {
     }
     @property ref ObjectList[Variant] map() { return _map; }
     @property Variant[] keys() { return _map.keys; }
-    @property int length() { return cast(int)_map.length; }
+    @property size_t length() { return _map.length; }
     ObjectList * opIndex(Variant key) {
         Variant id = normalize(key);
         if ((id in _map) is null) {
@@ -768,7 +769,7 @@ class EntityCollections {
     private ObjectList[Variant] _map; // ID to object list
     @property ref ObjectList[Variant] map() { return _map; }
     @property Variant[] keys() { return _map.keys; }
-    @property int length() { return cast(int)_map.length; }
+    @property size_t length() { return _map.length; }
     ref Object[] opIndex(Variant key) {
         //writeln("searching for key " ~ key.toString);
         Variant id = normalize(key);
@@ -803,7 +804,7 @@ class PropertyLoadMap {
         return item;
     }
     @property ref PropertyLoadItem[const PropertyInfo] map() { return _map; }
-    @property int length() { return cast(int)_map.length; }
+    @property size_t length() { return _map.length; }
     @property const (PropertyInfo)[] keys() { return _map.keys; }
     void add(const PropertyInfo property, Variant id, Object obj) {
         auto item = opIndex(property);
@@ -906,8 +907,8 @@ class QueryImpl : Query
                 if (pi.oneToOne || pi.manyToOne) {
                     static if (TRACE_REFS) writeln("updating relations for " ~ from.pathString ~ "." ~ pi.propertyName);
                     FromClauseItem rfrom = findRelation(from, pi);
-                    if (rfrom !is null && rfrom.selectIndex >= 0) {
-                        Object rel = relations[rfrom.selectIndex];
+                    if (rfrom !is null && !rfrom.selectIndex.isNull) {
+                        Object rel = relations[rfrom.selectIndex.get];
                         pi.setObjectFunc(relations[i], rel);
                     } else {
                         if (pi.columnName !is null) {
@@ -1068,7 +1069,7 @@ class QueryImpl : Query
         params.applyParams(stmt);
         ResultSet rs = stmt.executeQuery();
         assert(query.select !is null && query.select.length > 0);
-        int startColumn = query.select[0].from.startColumn;
+        size_t startColumn = query.select[0].from.startColumn;
         {
             scope(exit) rs.close();
             while(rs.next()) {
