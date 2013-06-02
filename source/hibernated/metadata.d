@@ -3321,17 +3321,16 @@ class DBInfo {
     /// drop and/or create tables and indexes in DB using specified connection
     void updateDBSchema(Connection conn, bool dropTables, bool createTables) {
         string[] existingTables = getExistingTables(conn);
-        string[] batch;
-        if (dropTables)
-            batch ~= getDropTableSQL(existingTables);
-        if (createTables)
-            batch ~= getCreateTableSQL(existingTables);
+        string[] dropTablesSQL = dropTables? getDropTableSQL(existingTables) : null;
+        string[] createTablesSQL = createTables? getCreateTableSQL(existingTables) : null;
         try {
             Statement stmt = conn.createStatement();
             scope(exit) stmt.close();
-            foreach(sql; batch) {
-                stmt.executeUpdate(sql);
-            }
+			foreach(batch; TypeTuple(dropTablesSQL, createTablesSQL)) {
+				foreach(sql; batch) {
+					stmt.executeUpdate(sql);
+				}
+			}
         } catch (Exception e) {
             throw new HibernatedException(e);
         }
